@@ -10,7 +10,7 @@
 /Examples/
 /Data_Entsoe/
 .gitignore
-
+*.json
 
 # Ignorer les fichiers de configuration de l'environnement
 .env

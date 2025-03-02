@@ -14,6 +14,7 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')  # Token du bot Telegram
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')               # ID du chat (utilisateur ou groupe)
 DB_PATH = 'production.db'                             # Chemin vers la base de données
 
+
 # Configuration du logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
