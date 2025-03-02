@@ -34,7 +34,7 @@ client = EntsoePandasClient(api_key=token, timeout=60)
 
 # Définir la période de données que vous souhaitez récupérer avec des objets datetime conscients du fuseau horaire
 cet = pytz.timezone('Europe/Paris')
-start = pd.Timestamp(datetime.now() - timedelta(hours=80), tz='Europe/Paris')
+start = pd.Timestamp(datetime.now() - timedelta(hours=2), tz='Europe/Paris')
 end = pd.Timestamp(datetime.now()- timedelta(hours=0), tz='Europe/Paris')
 # start = pd.Timestamp(datetime.now() - timedelta(hours=240), tz='Europe/Paris')
 # end = pd.Timestamp(datetime.now()- timedelta(hours=0), tz='Europe/Paris')

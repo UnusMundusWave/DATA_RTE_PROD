@@ -68,7 +68,7 @@ def query_low_production_units():
         SELECT
             u.name,
             p.value,
-            u.nominal  -- Colonne à la position 2
+            u.nominal
         FROM units u
         INNER JOIN latest_prod lp 
             ON u.id = lp.unit_id
@@ -136,16 +136,17 @@ async def generate_production_report():
                     u.id, 
                     u.name, 
                     p.value,
-                    JULIANDAY((SELECT max_date FROM latest_date)) - 
+                    u.nominal,
+                    CAST(JULIANDAY((SELECT max_date FROM latest_date)) - 
                     JULIANDAY(COALESCE(
                         (SELECT MAX(timestamp) 
                          FROM production p3 
                          WHERE p3.unit_id = u.id 
-                           AND p3.value >= 20),
+                           AND p3.value >= 0.2 * u.nominal),
                         (SELECT MIN(timestamp) 
                          FROM production p4 
                          WHERE p4.unit_id = u.id)
-                    )) AS days_since_above_20
+                    )) AS REAL) AS days_since_above_20
                 FROM production p
                 JOIN units u ON p.unit_id = u.id
                 WHERE p.timestamp = (SELECT max_date FROM latest_date)
@@ -175,6 +176,7 @@ async def generate_production_report():
                 'id', id, 
                 'name', name, 
                 'value', value,
+                'nominal', nominal,
                 'days_since_above_20', days_since_above_20
             )) FROM low_production_units) AS low_production_list,
             (SELECT COUNT(*) FROM missing_units) AS missing_units_count,
@@ -220,7 +222,7 @@ async def generate_production_report():
             for u in json.loads(low_list):  # Utiliser les données de la requête principale
                 unit_name = u['name']
                 value = u['value']
-                nominal = u.get('nominal') or 1  # Fallback pour éviter division par zéro
+                nominal = u['nominal']
                 percentage = (value / nominal) * 100
                 days = int(u['days_since_above_20'])
                 

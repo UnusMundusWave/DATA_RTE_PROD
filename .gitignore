@@ -9,6 +9,7 @@
 /Source/
 /Examples/
 /Data_Entsoe/
+.gitignore
 
 
 # Ignorer les fichiers de configuration de l'environnement
