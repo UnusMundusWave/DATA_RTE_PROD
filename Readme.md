@@ -1,15 +1,16 @@
-# French Nuclear Power Production Monitoring Project
+# Production Monitoring Project
 
 This project consists of a set of Python scripts and a batch file designed to monitor and report on energy production data. It retrieves data from an API, processes it, stores it in a SQLite database, and sends reports via Telegram.
 
 ## Project Structure
 
 -   `_0_production_monitoring.bat`: Batch file that orchestrates the execution of the Python scripts.
--   `_1_getTransparencyAPI.py`: Python script that retrieves generation data from the ENTSO-E Transparency Platform API, saves it to a CSV file, and handles potential connection errors with a retry mechanism.
--   `_2_parser_csv.py`: Python script that parses the raw CSV data, filters it to include only nuclear production units, performs data cleaning and transformations, and saves the processed data to a new CSV file.
--   `_3_import_csv.py`: Python script that imports the filtered CSV data into a SQLite database (`production.db`), creating the database and tables if they don't exist. It also handles data type conversions and ensures data integrity.
--   `_4_ProductionReporting_Telegram_bot.py`: Python script that queries the SQLite database to generate production reports, identifies units with low production, and sends the reports via Telegram.
+-   `_1_getTransparencyAPI.py`: Python script to retrieve data from the Entsoe Transparency API.
+-   `_2_parser_csv.py`: Python script to parse and filter the CSV data.
+-   `_3_import_csv.py`: Python script to import the parsed CSV data into a SQLite database.
+-   `_4_ProductionReporting_Telegram_bot.py`: Python script to generate production reports and send them via Telegram.
 -   `.env`: Environment file to store API keys and other configuration variables.
+-   `.gitignore`: Specifies intentionally untracked files that Git should ignore.
 -   `production.db`: SQLite database to store the production data.
 -   `Readme.md`: Documentation file for the project.
 
@@ -89,53 +90,24 @@ Before running the project, ensure you have the following installed:
 
 The script is configured to run every XX:50 as defined by the `TARGET_MINUTE` variable in the [_0_production_monitoring.bat](http://_vscodecontentref_/18) file.
 
-## Database Schema
+## Database
 
-The project uses a SQLite database (`production.db`) to store the production data. The database contains the following tables:
+The project uses a SQLite database (`production.db`) to store the production data. The database contains two tables:
 
--   **units:** Stores information about the production units.
+-   [units](http://_vscodecontentref_/19): Stores information about the production units.
+-   `production`: Stores the production data for each unit at specific timestamps.
 
-    ```sql
-    CREATE TABLE units (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, -- Identifiant unique de l'unité
-        name TEXT NOT NULL,                   -- Nom de l'unité
-        location TEXT NOT NULL,               -- Lieu de l'unité
-        production_type TEXT NOT NULL,        -- Type de production (e.g., énergie, alimentaire)
-        installation_date DATE,               -- Date d'installation
-        characteristics TEXT,                  -- Autres caractéristiques (JSON ou texte formaté)
-        nominal REAL                          -- Production nominale
-    );
-    ```
+## Logging
 
--   **production:** Stores the production data for each unit at specific timestamps.
+The Python scripts use the [logging](http://_vscodecontentref_/20) module to log information, warnings, and errors. Logs are displayed in the console.
 
-    ```sql
-    CREATE TABLE IF NOT EXISTS "production"(
-        id INT,
-        unit_id INT,
-        timestamp NUM,
-        value REAL
-    );
-    ```
+## Error Handling
 
--   **centrales:** Stores information about the power plants.
+The batch file and Python scripts include error handling to catch and report any issues that occur during execution. If an error occurs, the batch file will pause and display an error message. The Python scripts will log errors and exit.
 
-    ```sql
-    CREATE TABLE IF NOT EXISTS "centrales" (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, -- Identifiant unique de la centrale
-        name TEXT NOT NULL,                   -- Nom de la centrale
-        unit_ids TEXT NOT NULL,               -- Liste des IDs des unités installées dans cette centrale
-        position TEXT                         -- Coordonnées de la centrale (au format JSON)
-    );
-    ```
+## Notes
 
-## Indices
-
-The following indices are defined to optimize query performance:
-
-```sql
-CREATE INDEX idx_production_unit_time
-ON production(unit_id, timestamp DESC);
-
-CREATE INDEX idx_units_nominal
-ON units(id, nominal);
+-   Ensure that the required environment variables are set correctly in the [.env](http://_vscodecontentref_/21) file.
+-   Check the logs for any errors or warnings during execution.
+-   The [DATA_DIRECTORY](http://_vscodecontentref_/22) should exist, or the scripts will create it.
+-   The Telegram bot needs to be started and authorized to send messages to the specified chat ID.
