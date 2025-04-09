@@ -2,19 +2,22 @@ import pandas as pd
 import logging
 import numpy as np
 import os
-import dotenv
-
-dotenv.load_dotenv()
+from dotenv import load_dotenv  # Import dotenv
 
 # Configurer le logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(filename)s - %(levellevelname)s - %(message)s'  # Ajout du nom de fichier
+    format='%(asctime)s - %(filename)s - %(levelname)s - %(message)s'  # Ajout du nom de fichier
 )
 logger = logging.getLogger(__name__)
 
 # Répertoire contenant les fichiers CSV (codé en dur)
+
+DIRECTORY = "Grafana_Sqlite"
+load_dotenv()
+
 DIRECTORY = os.getenv('DATA_DIRECTORY')
+
 
 # Fonction pour trouver le fichier CSV le plus récent dans un répertoire
 def get_most_recent_csv(directory):

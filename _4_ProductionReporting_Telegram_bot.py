@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import json
 import logging
 from pathlib import Path
+from datetime import datetime
 
 load_dotenv()
 
@@ -117,6 +118,49 @@ async def generate_production_report():
         flamanville_result = cursor.fetchone()
         flamanville_value = flamanville_result[0] if flamanville_result else 'N/A'
 
+        # Requête pour calculer l'âge moyen des unités < 20% de leur nominal
+        age_query = """
+        WITH latest_prod AS (
+            SELECT 
+                unit_id, 
+                MAX(timestamp) AS last_timestamp
+            FROM production
+            GROUP BY unit_id
+        ),
+        low_production_units AS (
+            SELECT 
+                u.id,
+                u.installation_date,
+                p.value,
+                u.nominal
+            FROM units u
+            INNER JOIN latest_prod lp 
+                ON u.id = lp.unit_id
+            INNER JOIN production p 
+                ON p.unit_id = lp.unit_id 
+                AND p.timestamp = lp.last_timestamp
+            WHERE 
+                u.nominal > 0 
+                AND p.value < 0.2 * u.nominal
+                AND u.installation_date IS NOT NULL
+        )
+        SELECT 
+            AVG((JULIANDAY('now') - JULIANDAY(u.installation_date)) / 365.25) AS avg_age_low,
+            COUNT(*) AS low_count,
+            (SELECT AVG((JULIANDAY('now') - JULIANDAY(u2.installation_date)) / 365.25)
+             FROM units u2
+             WHERE u2.installation_date IS NOT NULL
+               AND u2.id NOT IN (SELECT id FROM low_production_units)) AS avg_age_other,
+            (SELECT COUNT(*) 
+             FROM units u2
+             WHERE u2.installation_date IS NOT NULL
+               AND u2.id NOT IN (SELECT id FROM low_production_units)) AS other_count
+        FROM low_production_units u;
+        """
+        cursor.execute(age_query)
+        age_result = cursor.fetchone()
+        avg_age_low, low_count, avg_age_other, other_count = age_result
+
         # Exécution de la requête complète
         query = """
         WITH 
@@ -198,26 +242,14 @@ async def generate_production_report():
         if total_nominal and total_nominal > 0:
             load_factor = (total_prod / total_nominal) * 100 if total_prod else 0
 
-        # Récupération des unités <20% du nominal
-        current_low_units = {u['name'] for u in json.loads(low_list)}
-        new_entries = current_low_units - previous_low_units
-        exited_units = previous_low_units - current_low_units
-
-        # Sauvegarde de l'état actuel
-        with open('previous_low_units.json', 'w') as f:
-            json.dump(list(current_low_units), f)
-
         # Formatage du message
         message = f"📊 Rapport de production - {latest_date}\n\n"
         message += f"🏭 Facteur de charge du parc : {load_factor:.1f}%\n\n"
         message += f"🏭 FLAMANVILLE 3 : {flamanville_value} MW\n\n"
-        
-        # Section unités sorties
-        if exited_units:
-            message += "\n🟢 Unités rétablies : " + ", ".join(exited_units) + "\n"
+        message += f"⚠️ Âge moyen des {low_count} unités < 20% de leur nominal : {avg_age_low:.2f} ans\n"
+        message += f"⚠️ Âge moyen des {other_count} autres unités : {avg_age_other:.2f} ans\n\n"
 
-        # Section production faible
-        message += f"\n⚠️ Unités < 20% de leur nominal : {low_count}\n"
+        # Section unités sorties
         if low_count > 0:
             low_units = []
             for u in json.loads(low_list):  # Utiliser les données de la requête principale
@@ -226,13 +258,9 @@ async def generate_production_report():
                 nominal = u['nominal']
                 percentage = (value / nominal) * 100
                 days = int(u['days_since_above_20'])
-                
-                status_icon = "🔴" if unit_name in new_entries else "🔸"
-                low_units.append(
-                    f"{status_icon} {unit_name} ({value} MW, {days} j)"
-                                )
+                low_units.append(f"🔸 {unit_name} ({value} MW, {days} j)")
             message += "\n".join(low_units) + "\n\n"
-        
+
         # Section unités manquantes
         message += f"🚨 Unités sans données : {missing_count}\n"
         if missing_count > 0:
@@ -245,6 +273,67 @@ async def generate_production_report():
     except Exception as e:
         logger.error(f"Erreur génération rapport : {e}")
         return "❌ Erreur critique"
+
+def calculate_average_age_low_production_units():
+    """
+    Calcule l'âge moyen des unités dont la production est < 20% de leur nominal.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Requête pour sélectionner les unités < 20% de leur nominal avec leur date d'installation
+        query = """
+        WITH latest_prod AS (
+            SELECT 
+                unit_id, 
+                MAX(timestamp) AS last_timestamp
+            FROM production
+            GROUP BY unit_id
+        )
+        SELECT 
+            u.name,
+            u.installation_date,
+            p.value,
+            u.nominal
+        FROM units u
+        INNER JOIN latest_prod lp 
+            ON u.id = lp.unit_id
+        INNER JOIN production p 
+            ON p.unit_id = lp.unit_id 
+            AND p.timestamp = lp.last_timestamp
+        WHERE 
+            u.nominal > 0 
+            AND p.value < 0.2 * u.nominal
+            AND u.installation_date IS NOT NULL
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+
+        # Calcul de l'âge moyen
+        total_age = 0
+        count = 0
+        current_date = datetime.now()
+
+        for row in results:
+            name, installation_date, value, nominal = row
+            installation_date = datetime.strptime(installation_date, "%Y-%m-%d")
+            age = (current_date - installation_date).days / 365.25  # Convertir en années
+            total_age += age
+            count += 1
+
+        conn.close()
+
+        if count == 0:
+            print("Aucune unité avec une production < 20% de leur nominal.")
+            return
+
+        average_age = total_age / count
+        print(f"L'âge moyen des unités < 20% de leur nominal est de {average_age:.2f} ans.")
+
+    except Exception as e:
+        print(f"Erreur : {e}")
 
 async def main():
     """
@@ -262,3 +351,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    calculate_average_age_low_production_units()
